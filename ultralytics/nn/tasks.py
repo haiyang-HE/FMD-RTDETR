@@ -17,22 +17,7 @@ from ultralytics.utils.plotting import feature_visualization
 from ultralytics.utils.torch_utils import (fuse_conv_and_bn, fuse_deconv_and_bn, initialize_weights, intersect_dicts,
                                            make_divisible, model_info, scale_img, time_sync)
 
-from ultralytics.nn.backbone.convnextv2 import *
-from ultralytics.nn.backbone.fasternet import *
-from ultralytics.nn.backbone.efficientViT import *
-from ultralytics.nn.backbone.EfficientFormerV2 import *
-from ultralytics.nn.backbone.VanillaNet import *
-# from ultralytics.nn.backbone.revcol import *
-from ultralytics.nn.backbone.lsknet import *
-from ultralytics.nn.backbone.SwinTransformer import *
-from ultralytics.nn.backbone.repvit import *
-from ultralytics.nn.backbone.CSwimTramsformer import *
-from ultralytics.nn.backbone.UniRepLKNet import *
-# from ultralytics.nn.backbone.TransNext import *
-from ultralytics.nn.backbone.rmt import *
-from ultralytics.nn.backbone.pkinet import *
-from ultralytics.nn.backbone.mobilenetv4 import *
-from ultralytics.nn.backbone.starnet import *
+
 
 try:
     import thop
@@ -752,7 +737,7 @@ def parse_model(d, ch, verbose=True, warehouse_manager=None):  # model_dict, inp
                  C3_DySnakeConv, C2f_DySnakeConv, DySnakeConv,
                  C3_Faster, C2f_Faster, C3_Faster_EMA, C2f_Faster_EMA, C3_Faster_Rep, C2f_Faster_Rep, C3_Faster_Rep_EMA, C2f_Faster_Rep_EMA,
                  AKConv, C3_AKConv, C2f_AKConv, C3_RFAConv, C2f_RFAConv, C3_RFCAConv, C2f_RFCAConv, C3_RFCBAMConv, C2f_RFCBAMConv,
-                 RFAConv, RFCAConv, RFCBAMConv, C3_Conv3XC, C2f_Conv3XC, C3_SPAB, C2f_SPAB, Conv3XCC3, DRBC3, DBBC3,
+                 RFAConv, RFCAConv, RFCBAMConv, C3_Conv3XC, C2f_Conv3XC, C3_SPAB, C2f_SPAB, HRFP, DRBC3, DBBC3,
                  C3_UniRepLKNetBlock, C2f_UniRepLKNetBlock, C3_DRB, C2f_DRB, C3_DWR_DRB, C2f_DWR_DRB, DWRC3_DRB,
                  C2f_DBB, C3_DBB, CSP_EDLAN, GSConv, VoVGSCSP, VoVGSCSPC,
                  SPDConv,
@@ -776,14 +761,14 @@ def parse_model(d, ch, verbose=True, warehouse_manager=None):  # model_dict, inp
             if m in (RepNCSPELAN4, DBBNCSPELAN4, OREPANCSPELAN4, DRBNCSPELAN4, Conv3XCNCSPELAN4, RepNCSPELAN4_CAA):
                 args[2] = make_divisible(min(args[2], max_channels) * width, 8)
                 args[3] = make_divisible(min(args[3], max_channels) * width, 8)
-            
+
             if m in (BottleneckCSP, C1, C2, C2f, C3, C3TR, C3Ghost, C3x, RepC3, DWRC3, C3_DWR, C2f_DWR, C3_DCNv2_Dynamic, C2f_DCNv2_Dynamic,
                      C3_DCNv2, C2f_DCNv2,  C3_iRMB, C2f_iRMB, C3_iRMB_Cascaded, C2f_iRMB_Cascaded,
                      C3_Attention, C2f_Attention, C3_Ortho, C2f_Ortho, C3_DySnakeConv, C2f_DySnakeConv,
                      C3_Faster, C2f_Faster, C3_Faster_EMA, C2f_Faster_EMA, C3_Faster_Rep, C2f_Faster_Rep, C3_Faster_Rep_EMA, C2f_Faster_Rep_EMA,
                      C3_AKConv, C2f_AKConv, C3_RFAConv, C2f_RFAConv, C3_RFCAConv, C2f_RFCAConv, C3_RFCBAMConv, C2f_RFCBAMConv,
                      C3_Conv3XC, C2f_Conv3XC, C3_SPAB, C2f_SPAB, C3_UniRepLKNetBlock, C2f_UniRepLKNetBlock, C3_DRB, C2f_DRB, C3_DWR_DRB, C2f_DWR_DRB, DWRC3_DRB,
-                     Conv3XCC3, DRBC3, DBBC3, C2f_DBB, C3_DBB, CSP_EDLAN, VoVGSCSP, VoVGSCSPC,
+                     HRFP, DRBC3, DBBC3, C2f_DBB, C3_DBB, CSP_EDLAN, VoVGSCSP, VoVGSCSPC,
                      C3_DCNv4, C2f_DCNv4, C3_SWC, C2f_SWC, C3_iRMB_DRB, C2f_iRMB_DRB, C3_iRMB_SWC, C2f_iRMB_SWC,
                     C3_ContextGuided, C2f_ContextGuided, RetBlockC3, C3_RetBlock, C2f_RetBlock,
                      C3_PKIModule, C2f_PKIModule, C3_PPA, C2f_PPA, RGCSPELAN, C3_Faster_CGLU, C2f_Faster_CGLU,
@@ -792,7 +777,7 @@ def parse_model(d, ch, verbose=True, warehouse_manager=None):  # model_dict, inp
                      C2f_MSMHSA_CGLU, CSP_PMSFA):
                 args.insert(2, n)  # number of repeats
                 n = 1
-        elif m in (AIFI, AIFI_LPE, TransformerEncoderLayer_LocalWindowAttention, TransformerEncoderLayer_DAttention, TransformerEncoderLayer_HiLo, 
+        elif m in (AIFI, AIFI_LPE, TransformerEncoderLayer_LocalWindowAttention, TransformerEncoderLayer_DAttention, TransformerEncoderLayer_HiLo,
                    TransformerEncoderLayer_EfficientAdditiveAttnetion, AIFI_RepBN, TransformerEncoderLayer_AdditiveTokenMixer,
                    TransformerEncoderLayer_MSMHSA):
             args = [ch[f], *args]
@@ -818,33 +803,12 @@ def parse_model(d, ch, verbose=True, warehouse_manager=None):  # model_dict, inp
             args.insert(1, [ch[x] for x in f])
         elif isinstance(m, str):
             t = m
-            if len(args) == 2:        
+            if len(args) == 2:
                 m = timm.create_model(m, pretrained=args[0], pretrained_cfg_overlay={'file':args[1]}, features_only=True)
             elif len(args) == 1:
                 m = timm.create_model(m, pretrained=args[0], features_only=True)
             c2 = m.feature_info.channels()
-        elif m in {convnextv2_atto, convnextv2_femto, convnextv2_pico, convnextv2_nano, convnextv2_tiny, convnextv2_base, convnextv2_large, convnextv2_huge,
-                   fasternet_t0, fasternet_t1, fasternet_t2, fasternet_s, fasternet_m, fasternet_l,
-                   EfficientViT_M0, EfficientViT_M1, EfficientViT_M2, EfficientViT_M3, EfficientViT_M4, EfficientViT_M5,
-                   efficientformerv2_s0, efficientformerv2_s1, efficientformerv2_s2, efficientformerv2_l,
-                   vanillanet_5, vanillanet_6, vanillanet_7, vanillanet_8, vanillanet_9, vanillanet_10, vanillanet_11, vanillanet_12, vanillanet_13, vanillanet_13_x1_5, vanillanet_13_x1_5_ada_pool,
-                #    RevCol,
-                   lsknet_t, lsknet_s,
-                   SwinTransformer_Tiny,
-                   repvit_m0_9, repvit_m1_0, repvit_m1_1, repvit_m1_5, repvit_m2_3,
-                   CSWin_tiny, CSWin_small, CSWin_base, CSWin_large,
-                   unireplknet_a, unireplknet_f, unireplknet_p, unireplknet_n, unireplknet_t, unireplknet_s, unireplknet_b, unireplknet_l, unireplknet_xl,
 
-                   RMT_T, RMT_S, RMT_B, RMT_L,
-                   PKINET_T, PKINET_S, PKINET_B,
-                   MobileNetV4ConvSmall, MobileNetV4ConvMedium, MobileNetV4ConvLarge, MobileNetV4HybridMedium, MobileNetV4HybridLarge,
-                   starnet_s050, starnet_s100, starnet_s150, starnet_s1, starnet_s2, starnet_s3, starnet_s4
-                   }:
-            # if m is RevCol:
-            #     args[1] = [make_divisible(min(k, max_channels) * width, 8) for k in args[1]]
-            #     args[2] = [max(round(k * depth), 1) for k in args[2]]
-            m = m(*args)
-            c2 = m.channel
         elif m in {EMA, SpatialAttention, BiLevelRoutingAttention, BiLevelRoutingAttention_nchw,
                    TripletAttention, CoordAtt, CBAM, BAMBlock, LSKBlock, SEAttention, CPCA, EfficientAttention, 
                    MPCA, deformable_LKA, EffectiveSEModule, LSKA, SegNext_Attention, DAttention, MLCA,

@@ -50,7 +50,7 @@ __all__ = ['Ghost_HGBlock', 'Rep_HGBlock', 'DWRC3', 'C3_DWR', 'C2f_DWR', 'BasicB
            'BasicBlock_RFAConv', 'BottleNeck_RFAConv', 'BasicBlock_RFCBAMConv', 'BottleNeck_RFCBAMConv', 'BasicBlock_RFCAConv', 'BottleNeck_RFCAConv',
            'C3_Conv3XC', 'C2f_Conv3XC', 'C3_SPAB', 'C2f_SPAB', 'BasicBlock_Conv3XC', 'BottleNeck_Conv3XC',
            'C3_UniRepLKNetBlock', 'C2f_UniRepLKNetBlock', 'C3_DRB', 'C2f_DRB', 'BasicBlock_DRB', 'BottleNeck_DRB',
-           'DWRC3_DRB', 'C3_DWR_DRB', 'C2f_DWR_DRB', 'Conv3XCC3', 'DRBC3', 'DBBC3', 'C2f_DBB', 'C3_DBB', 'BasicBlock_DBB', 'BottleNeck_DBB', 'CSP_EDLAN',
+           'DWRC3_DRB', 'C3_DWR_DRB', 'C2f_DWR_DRB', 'HRFP', 'DRBC3', 'DBBC3', 'C2f_DBB', 'C3_DBB', 'BasicBlock_DBB', 'BottleNeck_DBB', 'CSP_EDLAN',
            'BasicBlock_DualConv', 'BottleNeck_DualConv', 'Zoom_cat', 'ScalSeq', 'DynamicScalSeq', 'Add', 'asf_attention_model',
            'GSConv', 'VoVGSCSP', 'VoVGSCSPC', 'SDI','SimFusion_3in', 'SimFusion_4in', 'IFM', 'InjectionMultiSum_Auto_pool', 'PyramidPoolAgg', 'AdvPoolFusion', 'TopBasicLayer',
            'ChannelAttention_HSFPN', 'ELA_HSFPN', 'CA_HSFPN', 'Multiply', 'DySample', 'CARAFE',
@@ -66,7 +66,7 @@ __all__ = ['Ghost_HGBlock', 'Rep_HGBlock', 'DWRC3', 'C3_DWR', 'C2f_DWR', 'BasicB
            'C3_Heat', 'C2f_Heat', 'PSA', 'SBA', 'WaveletPool', 'WaveletUnPool', 'CSP_PTB', 'GLSA', 'CSPOmniKernel', 'WTConv2d', 'RCM', 'PyramidContextExtraction',
            'DynamicInterpolationFusion', 'FuseBlockMulti', 'C2f_FMB', 'gConvC3', 'C2f_gConv', 'LDConv', 'BasicBlock_WDBB', 'BottleNeck_WDBB', 'BasicBlock_DeepDBB', 'BottleNeck_DeepDBB',
            'C2f_AdditiveBlock', 'C2f_AdditiveBlock_CGLU', 'CSP_MSCB', 'EUCB', 'C2f_MSMHSA_CGLU', 'CSP_PMSFA'
-           
+
            ]
 
 ######################################## HGBlock with RepConv and GhostConv start ########################################
@@ -143,13 +143,13 @@ class DWR(nn.Module):
         super().__init__()
 
         self.conv_3x3 = Conv(dim, dim // 2, 3, act=act)
-        
+
         self.conv_3x3_d1 = Conv(dim // 2, dim, 3, d=1, act=act)
         self.conv_3x3_d3 = Conv(dim // 2, dim // 2, 3, d=3, act=act)
         self.conv_3x3_d5 = Conv(dim // 2, dim // 2, 3, d=5, act=act)
-        
+
         self.conv_1x1 = Conv(dim * 2, dim, k=1, act=act)
-        
+
     def forward(self, x):
         conv_3x3 = self.conv_3x3(x)
         x1, x2, x3 = self.conv_3x3_d1(conv_3x3), self.conv_3x3_d3(conv_3x3), self.conv_3x3_d5(conv_3x3)
@@ -164,7 +164,7 @@ class DWRC3(RepC3):
         if s == 2:
             self.conv_s2 = Conv(c1, c1, k=3, s=2, act=act)
         self.m = nn.Sequential(*[DWR(c_, act) for _ in range(n)])
-    
+
     def forward(self, x):
         """Forward pass of RT-DETR neck layer."""
         if hasattr(self, "conv_s2"):
@@ -181,7 +181,7 @@ class C2f_DWR(C2f):
     def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5):
         super().__init__(c1, c2, n, shortcut, g, e)
         self.m = nn.ModuleList(DWR(self.c) for _ in range(n))
-    
+
 ######################################## Dilation-wise Residual end ########################################
 
 ######################################## OrthoNets start ########################################
@@ -224,7 +224,7 @@ class GramSchmidtTransform(torch.nn.Module):
         with torch.no_grad():
             rand_ortho_filters = initialize_orthogonal_filters(c, h, h).view(c, h, h)
         self.register_buffer("constant_filter", rand_ortho_filters.detach())
-        
+
     def forward(self, x):
         _, _, h, w = x.shape
         _, H, W = self.constant_filter.shape
@@ -262,8 +262,8 @@ class BasicBlock_Ortho(nn.Module):
 
         self.branch2a = ConvNormLayer(ch_in, ch_out, 3, stride, act=act)
         self.branch2b = ConvNormLayer(ch_out, ch_out, 3, 1, act=None)
-        self.act = nn.Identity() if act is None else get_activation(act) 
-        
+        self.act = nn.Identity() if act is None else get_activation(act)
+
         self._excitation = nn.Sequential(
             nn.Linear(in_features=ch_out, out_features=round(ch_out / 16), bias=False),
             nn.ReLU(inplace=True),
@@ -277,12 +277,12 @@ class BasicBlock_Ortho(nn.Module):
     def forward(self, x):
         out = self.branch2a(x)
         out = self.branch2b(out)
-        
+
         compressed = self.OrthoAttention(self.F_C_A, out)
         b, c = out.size(0),out.size(1)
         excitation = self._excitation(compressed).view(b, c, 1, 1)
-        out = excitation * out 
-        
+        out = excitation * out
+
         if self.shortcut:
             short = x
         else:
@@ -303,7 +303,7 @@ class BottleNeck_Ortho(nn.Module):
         else:
             stride1, stride2 = 1, stride
 
-        width = ch_out 
+        width = ch_out
 
         self.branch2a = ConvNormLayer(ch_in, width, 1, stride1, act=act)
         self.branch2b = ConvNormLayer(width, width, 3, stride2, act=act)
@@ -320,7 +320,7 @@ class BottleNeck_Ortho(nn.Module):
                 self.short = ConvNormLayer(ch_in, ch_out * self.expansion, 1, stride)
 
         self.act = nn.Identity() if act is None else get_activation(act)
-        
+
         self._excitation = nn.Sequential(
             nn.Linear(in_features=ch_out * self.expansion, out_features=round(ch_out / 16 * self.expansion), bias=False),
             nn.ReLU(inplace=True),
@@ -338,7 +338,7 @@ class BottleNeck_Ortho(nn.Module):
         b, c = out.size(0),out.size(1)
         excitation = self._excitation(compressed).view(b, c, 1, 1)
         out = excitation * out
-        
+
         if self.shortcut:
             short = x
         else:
@@ -473,13 +473,13 @@ class C2f_DCNv2(C2f):
 class BasicBlock_DCNv2(BasicBlock):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = DCNv2(ch_out, ch_out, 3, act=None)
 
 class BottleNeck_DCNv2(BottleNeck):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = DCNv2(ch_out, ch_out, 3, stride=stride, act=None)
 
 ######################################## DCNV2 end ########################################
@@ -489,12 +489,12 @@ class BottleNeck_DCNv2(BottleNeck):
 class DCNv2_Offset_Attention(nn.Module):
     def __init__(self, in_channels, kernel_size, stride, deformable_groups=1) -> None:
         super().__init__()
-        
+
         padding = autopad(kernel_size, None, 1)
         self.out_channel = (deformable_groups * 3 * kernel_size * kernel_size)
         self.conv_offset_mask = nn.Conv2d(in_channels, self.out_channel, kernel_size, stride, padding, bias=True)
         self.attention = MPCA(self.out_channel)
-        
+
     def forward(self, x):
         conv_offset_mask = self.conv_offset_mask(x)
         conv_offset_mask = self.attention(conv_offset_mask)
@@ -579,13 +579,13 @@ class C2f_DCNv2_Dynamic(C2f):
 class BasicBlock_DCNv2_Dynamic(BasicBlock):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = DCNv2_Dynamic(ch_out, ch_out, 3, act=None)
 
 class BottleNeck_DCNv2_Dynamic(BottleNeck):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = DCNv2_Dynamic(ch_out, ch_out, 3, stride=stride, act=None)
 
 ######################################## DCNV2_Dynamic end ########################################
@@ -679,11 +679,11 @@ class iRMB(nn.Module):
 				self.v = nn.Identity()
 		self.conv_local = Conv(dim_mid, dim_mid, k=dw_ks, s=stride, d=dilation, g=dim_mid)
 		self.se = SEAttention(dim_mid, reduction=se_ratio) if se_ratio > 0.0 else nn.Identity()
-		
+
 		self.proj_drop = nn.Dropout(drop)
 		self.proj = nn.Conv2d(dim_mid, dim_out, kernel_size=1)
 		self.drop_path = DropPath(drop_path) if drop_path else nn.Identity()
-	
+
 	def forward(self, x):
 		shortcut = x
 		x = self.norm(x)
@@ -726,10 +726,10 @@ class iRMB(nn.Module):
 			x = self.v(x)
 
 		x = x + self.se(self.conv_local(x)) if self.has_skip else self.se(self.conv_local(x))
-		
+
 		x = self.proj_drop(x)
 		x = self.proj(x)
-		
+
 		x = (shortcut + self.drop_path(x)) if self.has_skip else x
 		return x
 
@@ -756,11 +756,11 @@ class iRMB_Cascaded(nn.Module):
 				self.v = nn.Identity()
 		self.conv_local = Conv(dim_mid, dim_mid, k=dw_ks, s=stride, d=dilation, g=dim_mid)
 		self.se = SEAttention(dim_mid, reduction=se_ratio) if se_ratio > 0.0 else nn.Identity()
-		
+
 		self.proj_drop = nn.Dropout(drop)
 		self.proj = nn.Conv2d(dim_mid, dim_out, kernel_size=1)
 		self.drop_path = DropPath(drop_path) if drop_path else nn.Identity()
-	
+
 	def forward(self, x):
 		shortcut = x
 		x = self.norm(x)
@@ -771,10 +771,10 @@ class iRMB_Cascaded(nn.Module):
 			x = self.v(x)
 
 		x = x + self.se(self.conv_local(x)) if self.has_skip else self.se(self.conv_local(x))
-		
+
 		x = self.proj_drop(x)
 		x = self.proj(x)
-		
+
 		x = (shortcut + self.drop_path(x)) if self.has_skip else x
 		return x
 
@@ -811,11 +811,11 @@ class iRMB_DRB(nn.Module):
 				self.v = nn.Identity()
 		self.conv_local = DilatedReparamBlock(dim_mid, dw_ks)
 		self.se = SEAttention(dim_mid, reduction=se_ratio) if se_ratio > 0.0 else nn.Identity()
-		
+
 		self.proj_drop = nn.Dropout(drop)
 		self.proj = nn.Conv2d(dim_mid, dim_out, kernel_size=1)
 		self.drop_path = DropPath(drop_path) if drop_path else nn.Identity()
-	
+
 	def forward(self, x):
 		shortcut = x
 		x = self.norm(x)
@@ -858,10 +858,10 @@ class iRMB_DRB(nn.Module):
 			x = self.v(x)
 
 		x = x + self.se(self.conv_local(x)) if self.has_skip else self.se(self.conv_local(x))
-		
+
 		x = self.proj_drop(x)
 		x = self.proj(x)
-		
+
 		x = (shortcut + self.drop_path(x)) if self.has_skip else x
 		return x
 
@@ -898,11 +898,11 @@ class iRMB_SWC(nn.Module):
 				self.v = nn.Identity()
 		self.conv_local = ReparamLargeKernelConv(dim_mid, dim_mid, dw_ks, stride=stride, groups=(dim_mid // 16))
 		self.se = SEAttention(dim_mid, reduction=se_ratio) if se_ratio > 0.0 else nn.Identity()
-		
+
 		self.proj_drop = nn.Dropout(drop)
 		self.proj = nn.Conv2d(dim_mid, dim_out, kernel_size=1)
 		self.drop_path = DropPath(drop_path) if drop_path else nn.Identity()
-	
+
 	def forward(self, x):
 		shortcut = x
 		x = self.norm(x)
@@ -945,10 +945,10 @@ class iRMB_SWC(nn.Module):
 			x = self.v(x)
 
 		x = x + self.se(self.conv_local(x)) if self.has_skip else self.se(self.conv_local(x))
-		
+
 		x = self.proj_drop(x)
 		x = self.proj(x)
-		
+
 		x = (shortcut + self.drop_path(x)) if self.has_skip else x
 		return x
 
@@ -966,13 +966,13 @@ class C2f_iRMB(C2f):
 class BasicBlock_iRMB(BasicBlock):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = iRMB(ch_out, ch_out)
 
 class BottleNeck_iRMB(BottleNeck):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = iRMB(ch_out, ch_out, stride=stride)
 
 class C3_iRMB_Cascaded(C3):
@@ -989,13 +989,13 @@ class C2f_iRMB_Cascaded(C2f):
 class BasicBlock_iRMB_Cascaded(BasicBlock):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = iRMB_Cascaded(ch_out, ch_out)
 
 class BottleNeck_iRMB_Cascaded(BottleNeck):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = iRMB_Cascaded(ch_out, ch_out, stride=stride)
 
 class C3_iRMB_DRB(C3):
@@ -1012,13 +1012,13 @@ class C2f_iRMB_DRB(C2f):
 class BasicBlock_iRMB_DRB(BasicBlock):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d', kernel_size=None):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = iRMB_DRB(ch_out, ch_out, dw_ks=kernel_size)
 
 class BottleNeck_iRMB_DRB(BottleNeck):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d', kernel_size=None):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = nn.Sequential(
             nn.MaxPool2d(kernel_size=2, stride=2) if stride == 2 else nn.Identity(),
 			iRMB_DRB(ch_out, ch_out, dw_ks=kernel_size),
@@ -1038,13 +1038,13 @@ class C2f_iRMB_SWC(C2f):
 class BasicBlock_iRMB_SWC(BasicBlock):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d', kernel_size=None):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = iRMB_SWC(ch_out, ch_out, dw_ks=kernel_size)
 
 class BottleNeck_iRMB_SWC(BottleNeck):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d', kernel_size=None):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = nn.Sequential(
             nn.MaxPool2d(kernel_size=2, stride=2) if stride == 2 else nn.Identity(),
 			iRMB_SWC(ch_out, ch_out, dw_ks=kernel_size),
@@ -1074,13 +1074,13 @@ class BasicBlock_Attention(nn.Module):
         self.branch2a = ConvNormLayer(ch_in, ch_out, 3, stride, act=act)
         self.branch2b = ConvNormLayer(ch_out, ch_out, 3, 1, act=None)
         self.act = nn.Identity() if act is None else get_activation(act)
-        
+
         # self.attention = CoordAtt(ch_out)
         # self.attention = BiLevelRoutingAttention_nchw(ch_out)
         # self.attention = ELA(ch_out)
         # self.attention = SimAM()
         self.attention = AFGCAttention(ch_out)
-        
+
     def forward(self, x):
         out = self.branch2a(x)
         out = self.branch2b(out)
@@ -1089,7 +1089,7 @@ class BasicBlock_Attention(nn.Module):
             short = x
         else:
             short = self.short(x)
-        
+
         out = out + short
         out = self.act(out)
 
@@ -1106,7 +1106,7 @@ class BottleNeck_Attention(nn.Module):
         else:
             stride1, stride2 = 1, stride
 
-        width = ch_out 
+        width = ch_out
 
         self.branch2a = ConvNormLayer(ch_in, width, 1, stride1, act=act)
         self.branch2b = ConvNormLayer(width, width, 3, stride2, act=act)
@@ -1123,7 +1123,7 @@ class BottleNeck_Attention(nn.Module):
                 self.short = ConvNormLayer(ch_in, ch_out * self.expansion, 1, stride)
 
         self.act = nn.Identity() if act is None else get_activation(act)
-        
+
         self.attention = CoordAtt(ch_out * self.expansion)
 
     def forward(self, x):
@@ -1157,7 +1157,7 @@ class HGBlock_Attention(nn.Module):
         self.sc = Conv(c1 + n * cm, c2 // 2, 1, 1, act=act)  # squeeze conv
         self.ec = Conv(c2 // 2, c2, 1, 1, act=act)  # excitation conv
         self.add = shortcut and c1 == c2
-        
+
         self.attention = CoordAtt(c1 + n * cm)
 
     def forward(self, x):
@@ -1188,7 +1188,7 @@ class Bottleneck_Attention(nn.Module):
 class C2f_Attention(C2f):
     def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5):
          super().__init__(c1, c2, n, shortcut, g, e)
-         
+
          self.m = nn.ModuleList(Bottleneck_Attention(self.c, self.c, shortcut, g, k=((3, 3), (3, 3)), e=1.0) for _ in range(n))
 
 class C3_Attention(C3):
@@ -1211,7 +1211,7 @@ class Bottleneck_DySnakeConv(Bottleneck):
     def forward(self, x):
         """'forward()' applies the YOLOv5 FPN to input data."""
         return x + self.cv3(self.cv2(self.cv1(x))) if self.add else self.cv3(self.cv2(self.cv1(x)))
-    
+
 class C3_DySnakeConv(C3):
     def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5):
         super().__init__(c1, c2, n, shortcut, g, e)
@@ -1226,7 +1226,7 @@ class C2f_DySnakeConv(C2f):
 class BasicBlock_DySnakeConv(BasicBlock):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = nn.Sequential(
             DySnakeConv(ch_out, ch_out, act=nn.ReLU()),
             Conv(ch_out * 3, ch_out, k=1, act=nn.ReLU())
@@ -1235,9 +1235,9 @@ class BasicBlock_DySnakeConv(BasicBlock):
 class BottleNeck_DySnakeConv(BottleNeck):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = nn.Sequential(
-            DySnakeConv(ch_out, ch_out, act=nn.ReLU()), 
+            DySnakeConv(ch_out, ch_out, act=nn.ReLU()),
             Conv(ch_out * 3, ch_out, k=3, s=stride, g=ch_out, act=nn.ReLU())
         )
 
@@ -1302,7 +1302,7 @@ class Faster_Block(nn.Module):
             n_div,
             pconv_fw_type
         )
-        
+
         self.adjust_channel = None
         if inc != dim:
             self.adjust_channel = Conv(inc, dim, 1)
@@ -1331,7 +1331,7 @@ class Faster_Block(nn.Module):
 class Faster_Block_EMA(Faster_Block):
     def __init__(self, inc, dim, n_div=4, mlp_ratio=2, drop_path=0.1, layer_scale_init_value=0, pconv_fw_type='split_cat'):
         super().__init__(inc, dim, n_div, mlp_ratio, drop_path, layer_scale_init_value, pconv_fw_type)
-        
+
         self.attention = EMA(channels=dim)
 
     def forward(self, x):
@@ -1351,23 +1351,23 @@ class Faster_Block_EMA(Faster_Block):
 class Partial_conv3_Rep(Partial_conv3):
     def __init__(self, dim, n_div=4, forward='split_cat'):
         super().__init__(dim, n_div, forward)
-        
+
         self.partial_conv3 = RepConv(self.dim_conv3, self.dim_conv3, k=3, act=False, bn=False)
 
 class Faster_Block_Rep(Faster_Block):
     def __init__(self, inc, dim, n_div=4, mlp_ratio=2, drop_path=0.1, layer_scale_init_value=0, pconv_fw_type='split_cat'):
         super().__init__(inc, dim, n_div, mlp_ratio, drop_path, layer_scale_init_value, pconv_fw_type)
-        
+
         self.spatial_mixing = Partial_conv3_Rep(
             dim,
             n_div,
             pconv_fw_type
         )
-        
+
 class Faster_Block_Rep_EMA(Faster_Block_EMA):
     def __init__(self, inc, dim, n_div=4, mlp_ratio=2, drop_path=0.1, layer_scale_init_value=0, pconv_fw_type='split_cat'):
         super().__init__(inc, dim, n_div, mlp_ratio, drop_path, layer_scale_init_value, pconv_fw_type)
-        
+
         self.spatial_mixing = Partial_conv3_Rep(
             dim,
             n_div,
@@ -1421,7 +1421,7 @@ class C2f_Faster_Rep_EMA(C2f):
 class BasicBlock_PConv(BasicBlock):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = nn.Sequential(
             Partial_conv3(dim=ch_out),
             nn.BatchNorm2d(num_features=ch_out),
@@ -1431,7 +1431,7 @@ class BasicBlock_PConv(BasicBlock):
 class BottleNeck_PConv(BottleNeck):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = nn.Sequential(
             nn.MaxPool2d(kernel_size=2, stride=2) if stride == 2 else nn.Identity(),
             Partial_conv3(dim=ch_out),
@@ -1442,7 +1442,7 @@ class BottleNeck_PConv(BottleNeck):
 class BasicBlock_PConv_Rep(BasicBlock):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = nn.Sequential(
             Partial_conv3_Rep(dim=ch_out),
             nn.BatchNorm2d(num_features=ch_out),
@@ -1452,7 +1452,7 @@ class BasicBlock_PConv_Rep(BasicBlock):
 class BottleNeck_PConv_Rep(BottleNeck):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = nn.Sequential(
             nn.MaxPool2d(kernel_size=2, stride=2) if stride == 2 else nn.Identity(),
             Partial_conv3_Rep(dim=ch_out),
@@ -1463,31 +1463,31 @@ class BottleNeck_PConv_Rep(BottleNeck):
 class BasicBlock_Faster_Block(BasicBlock):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = Faster_Block(ch_out, ch_out)
 
 class BasicBlock_Faster_Block_Rep(BasicBlock):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = Faster_Block_Rep(ch_out, ch_out)
 
 class BasicBlock_Faster_Block_EMA(BasicBlock):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = Faster_Block_EMA(ch_out, ch_out)
 
 class BasicBlock_Faster_Block_Rep_EMA(BasicBlock):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = Faster_Block_Rep_EMA(ch_out, ch_out)
 
 class BottleNeck_Faster_Block(BottleNeck):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = nn.Sequential(
             nn.MaxPool2d(kernel_size=2, stride=2) if stride == 2 else nn.Identity(),
             Faster_Block(ch_out, ch_out)
@@ -1496,16 +1496,16 @@ class BottleNeck_Faster_Block(BottleNeck):
 class BottleNeck_Faster_Block_EMA(BottleNeck):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = nn.Sequential(
             nn.MaxPool2d(kernel_size=2, stride=2) if stride == 2 else nn.Identity(),
             Faster_Block_EMA(ch_out, ch_out)
         )
-        
+
 class BottleNeck_Faster_Block_Rep(BottleNeck):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = nn.Sequential(
             nn.MaxPool2d(kernel_size=2, stride=2) if stride == 2 else nn.Identity(),
             Faster_Block_Rep(ch_out, ch_out)
@@ -1514,7 +1514,7 @@ class BottleNeck_Faster_Block_Rep(BottleNeck):
 class BottleNeck_Faster_Block_Rep_EMA(BottleNeck):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = nn.Sequential(
             nn.MaxPool2d(kernel_size=2, stride=2) if stride == 2 else nn.Identity(),
             Faster_Block_Rep_EMA(ch_out, ch_out)
@@ -1645,7 +1645,7 @@ class AKConv(nn.Module):
 
         return x_offset
 
-    
+
     #  Stacking resampled features in the row direction.
     @staticmethod
     def _reshape_x_offset(x_offset, num_param):
@@ -1655,7 +1655,7 @@ class AKConv(nn.Module):
         # using 1 × 1 Conv
         # x_offset = x_offset.permute(0,1,4,2,3), then, x_offset.view(b,c×num_param,h,w)  finally, Conv2d(c×num_param,c_out, kernel_size =1,stride=1,bias= False)
         # using the column conv as follow， then, Conv2d(inc, outc, kernel_size=(num_param, 1), stride=(num_param, 1), bias=bias)
-        
+
         x_offset = rearrange(x_offset, 'b c h w n -> b c (h n) w')
         return x_offset
 
@@ -1682,14 +1682,14 @@ class C2f_AKConv(C2f):
 class BasicBlock_AKConv(BasicBlock):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2a = AKConv(ch_in, ch_out, stride=stride)
         self.branch2b = AKConv(ch_out, ch_out)
 
 class BottleNeck_AKConv(BottleNeck):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = AKConv(ch_out, ch_out, stride=stride)
 
 ######################################## AKConv end ########################################
@@ -1720,14 +1720,14 @@ class C2f_RFAConv(C2f):
 class BasicBlock_RFAConv(BasicBlock):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2a = RFAConv(ch_in, ch_out, 3, stride=stride)
         self.branch2b = RFAConv(ch_out, ch_out, 3)
 
 class BottleNeck_RFAConv(BottleNeck):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = RFAConv(ch_out, ch_out, 3, stride=stride)
 
 class Bottleneck_RFCBAMConv(Bottleneck):
@@ -1753,14 +1753,14 @@ class C2f_RFCBAMConv(C2f):
 class BasicBlock_RFCBAMConv(BasicBlock):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2a = RFCBAMConv(ch_in, ch_out, 3, stride=stride)
         self.branch2b = RFCBAMConv(ch_out, ch_out, 3)
 
 class BottleNeck_RFCBAMConv(BottleNeck):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = RFCBAMConv(ch_out, ch_out, 3, stride=stride)
 
 class Bottleneck_RFCAConv(Bottleneck):
@@ -1786,14 +1786,14 @@ class C2f_RFCAConv(C2f):
 class BasicBlock_RFCAConv(BasicBlock):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2a = RFCAConv(ch_in, ch_out, 3, stride=stride)
         self.branch2b = RFCAConv(ch_out, ch_out, 3)
 
 class BottleNeck_RFCAConv(BottleNeck):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = RFCAConv(ch_out, ch_out, 3, stride=stride)
 
 ######################################## RFAConv end ########################################
@@ -1919,17 +1919,17 @@ class C2f_SPAB(C2f):
 class BasicBlock_Conv3XC(BasicBlock):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2a = Conv3XC(ch_in, ch_out, s=stride)
         self.branch2b = Conv3XC(ch_out, ch_out)
 
 class BottleNeck_Conv3XC(BottleNeck):
     def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
         super().__init__(ch_in, ch_out, stride, shortcut, act, variant)
-        
+
         self.branch2b = Conv3XC(ch_out, ch_out, s=stride)
 
-class Conv3XCC3(RepC3):
+class HRFP(RepC3):
     def __init__(self, c1, c2, n=3, e=1):
         super().__init__(c1, c2, n, e)
         c_ = int(c2 * e)  # hidden channels
