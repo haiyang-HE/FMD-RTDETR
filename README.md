@@ -12,7 +12,7 @@ We welcome feedback and contributions! If you’re interested in participating, 
 
 ## Future Plans  
 
-- **Timeline**: We aim to complete the above improvements by [Month, Year].  
-- **Milestones**: Outline significant development stages and goals.  
+- **1**: We will complete the software upload 
+- **2**: We will upload the improved annotation tool.  
 
 Thank you for your interest and support!
