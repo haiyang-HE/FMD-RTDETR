@@ -2,7 +2,7 @@
 
 ## Work Status  
 
-This project is currently under development. The following features and aspects are pending improvement:  
+This project is currently under development...
 
 1. **Feature A**: FMD-RTDETR is a deep learning model for epithelial cell detection.  
 2. **Feature B**: End-to-end quantification of positively expressing cells in multichannel images.  
