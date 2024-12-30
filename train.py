@@ -4,10 +4,10 @@ from ultralytics import RTDETR
 import os
 
 if __name__ == '__main__':
-    path_yaml = 'xr-ex/rtdetr-r101-FIFI-CSFCN-MY.yaml' # path to yaml file of model
+    path_yaml = 'FMD-RTDETR.yaml' # path to yaml file of model
     model = RTDETR(path_yaml)
     # model.load('') # loading pretrain weights
-    model.train(data='cell-yolo6-6/dataset.yaml',
+    model.train(data='dataset.yaml',
                 cache=False,
                 imgsz=640,
                 epochs=200,

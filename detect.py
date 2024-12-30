@@ -6,11 +6,7 @@ if __name__ == '__main__':
     model = RTDETR(r'best.pt') # select your model.pt path
     model.predict(source=r'detection documents',
                   conf=0.4,
-<<<<<<< HEAD
-                  project=r'run/detect',
-=======
                   project=r'runs/detect',
->>>>>>> b991c18 (first commit)
                   name='results',
                   save=True,
                   show_labels=False,
